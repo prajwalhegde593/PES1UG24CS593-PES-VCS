@@ -194,8 +194,49 @@ int head_update(const ObjectID *new_commit) {
 //
 // Returns 0 on success, -1 on error.
 int commit_create(const char *message, ObjectID *commit_id_out) {
-    // TODO: Implement commit creation
-    // (See Lab Appendix for logical steps)
-    (void)message; (void)commit_id_out;
-    return -1;
+    Commit commit;
+    memset(&commit, 0, sizeof(Commit));
+
+    // 1. Build the tree from the index and get the root tree hash
+    // This captures the current staged state as a hierarchy of objects.
+    if (tree_from_index(&commit.tree) != 0) {
+        return -1;
+    }
+
+    // 2. Read the current HEAD to find the parent commit hash
+    // If head_read fails, it's likely the initial commit (no parent).
+    if (head_read(&commit.parent) == 0) {
+        commit.has_parent = 1;
+    } else {
+        commit.has_parent = 0;
+    }
+
+    // 3. Set metadata: Author, Timestamp, and Message
+    // pes_author() retrieves identity from environment variables.
+    strncpy(commit.author, pes_author(), sizeof(commit.author) - 1);
+    commit.timestamp = (uint64_t)time(NULL);
+    strncpy(commit.message, message, sizeof(commit.message) - 1);
+
+    // 4. Serialize the Commit struct into the text-based format
+    void *data;
+    size_t len;
+    if (commit_serialize(&commit, &data, &len) != 0) {
+        return -1;
+    }
+
+    // 5. Write the commit object to the object store
+    if (object_write(OBJ_COMMIT, data, len, commit_id_out) != 0) {
+        free(data);
+        return -1;
+    }
+    free(data);
+
+    // 6. Update the branch pointer (HEAD) to point to this new commit hash
+    // This moves the "main" branch forward to the current snapshot.
+    if (head_update(commit_id_out) != 0) {
+        return -1;
+    }
+
+    return 0;
 }
+

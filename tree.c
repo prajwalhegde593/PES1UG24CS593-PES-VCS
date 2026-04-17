@@ -15,6 +15,8 @@
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
+int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
+int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t *len_out);
 
 // ─── Mode Constants ─────────────────────────────────────────────────────────
 
@@ -129,9 +131,75 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 //   - object_write    : save that binary buffer to the store as OBJ_TREE
 //
 // Returns 0 on success, -1 on error.
-int tree_from_index(ObjectID *id_out) {
-    // TODO: Implement recursive tree building
-    // (See Lab Appendix for logical steps)
-    (void)id_out;
-    return -1;
+#include "index.h"
+
+// Recursive helper to build trees level by level
+static int build_tree_recursive(IndexEntry *entries, int count, int depth, ObjectID *id_out) {
+    Tree tree;
+    tree.count = 0;
+
+    for (int i = 0; i < count; ) {
+        char *path = entries[i].path;
+        // Find if there is another directory level after the current depth
+        char *slash = strchr(path + depth, '/');
+
+        if (slash == NULL) {
+            // CASE 1: It's a file at the current level
+            TreeEntry *te = &tree.entries[tree.count++];
+            te->mode = entries[i].mode;
+            te->hash = entries[i].hash;
+            
+            // Get just the filename part
+            char *name = strrchr(path, '/');
+            const char *base_name = name ? name + 1 : path;
+            size_t base_len = strlen(base_name);
+            if (base_len >= sizeof(te->name)) return -1;
+            memcpy(te->name, base_name, base_len + 1);
+            i++;
+        } else {
+            // CASE 2: It's a subdirectory
+            TreeEntry *te = &tree.entries[tree.count++];
+            te->mode = MODE_DIR; // 040000
+
+            // Extract subdirectory name (e.g., "src" from "src/main.c")
+            size_t dir_name_len = slash - (path + depth);
+            if (dir_name_len >= sizeof(te->name)) return -1;
+            memcpy(te->name, path + depth, dir_name_len);
+            
+            te->name[dir_name_len] = '\0';
+
+            // Find all subsequent entries that belong to this same subdirectory
+            int sub_count = 0;
+            while (i + sub_count < count && 
+                   strncmp(entries[i + sub_count].path + depth, te->name, dir_name_len) == 0 &&
+                   entries[i + sub_count].path[depth + dir_name_len] == '/') {
+                sub_count++;
+            }
+
+            // Recurse to create the sub-tree and get its hash
+            if (build_tree_recursive(&entries[i], sub_count, depth + dir_name_len + 1, &te->hash) != 0) {
+                return -1;
+            }
+            i += sub_count; // Skip the entries we just processed in the sub-tree
+        }
+    }
+
+    // Serialize this level's tree and write it to the object store
+    void *data;
+    size_t len;
+    if (tree_serialize(&tree, &data, &len) != 0) return -1;
+    
+    int rc = object_write(OBJ_TREE, data, len, id_out);
+    free(data);
+    return rc;
 }
+
+int tree_from_index(ObjectID *id_out) {
+    Index index;
+    // Load the index into memory (sorted by path)
+    if (index_load(&index) != 0) return -1;
+    
+    // Start building from the root (depth 0)
+    return build_tree_recursive(index.entries, index.count, 0, id_out);
+}
+
