@@ -96,6 +96,7 @@ int object_exists(const ObjectID *id) {
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out) {
     // TODO: Implement
     (void)type; (void)data; (void)len; (void)id_out;
+<<<<<<< HEAD
     const char *type_str = (type == OBJ_BLOB) ? "blob" : (type == OBJ_TREE ? "tree" : "commit");
     char header[64];
     int header_len = sprintf(header, "%s %zu", type_str, len) + 1; // +1 for the \0 byte
@@ -148,6 +149,8 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
 
     free(full_obj);
     return 0;
+=======
+>>>>>>> a188ceb87435f3da212cc0ffcca6bf9f4e02f634
     return -1;
 }
 
@@ -176,6 +179,7 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
 int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t *len_out) {
     // TODO: Implement
     (void)id; (void)type_out; (void)data_out; (void)len_out;
+<<<<<<< HEAD
     char path[512];
     object_path(id, path, sizeof(path));
 
@@ -201,5 +205,7 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
     if (memcmp(id->hash, actual_id.hash, HASH_SIZE) != 0) {
         free(full_data);
         return -1; // Integrity mismatch
+=======
+>>>>>>> a188ceb87435f3da212cc0ffcca6bf9f4e02f634
     return -1;
 }
