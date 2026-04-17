@@ -10,7 +10,7 @@
 
 ```bash
 sudo apt update && sudo apt install -y gcc build-essential libssl-dev
-export PES_AUTHOR="Mohammed Zahoor Mashahir <PES1UG24CS579>"
+export PES_AUTHOR="prajwal hegde <PES1UG24CS593>"
 make all
 ```
 
